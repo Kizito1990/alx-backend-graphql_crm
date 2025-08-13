@@ -7,6 +7,8 @@ from decimal import Decimal, ROUND_HALF_UP
 import re
 
 from .models import Customer, Product, Order
+from .filters import CustomerFilter, ProductFilter, OrderFilter
+from graphene_django.filter import DjangoFilterConnectionField
 
 
 # ============================
@@ -172,20 +174,32 @@ class CreateOrder(graphene.Mutation):
 # Query + Mutation Registration
 # ============================
 class Query(graphene.ObjectType):
-    customers = graphene.List(CustomerType)
-    products = graphene.List(ProductType)
-    orders = graphene.List(OrderType)
+    all_customers = DjangoFilterConnectionField(CustomerType, filterset_class=CustomerFilter, order_by=graphene.List(of_type=graphene.String))
+    all_products = DjangoFilterConnectionField(ProductType, filterset_class=ProductFilter, order_by=graphene.List(of_type=graphene.String))
+    all_orders = DjangoFilterConnectionField(OrderType, filterset_class=OrderFilter, order_by=graphene.List(of_type=graphene.String))
 
-    def resolve_customers(self, info):
-        return Customer.objects.all()
+    def resolve_all_customers(self, info, **kwargs):
+        qs = Customer.objects.all()
+        order_by = kwargs.get('order_by')
+        if order_by:
+            qs = qs.order_by(*order_by)
+        return qs
 
-    def resolve_products(self, info):
-        return Product.objects.all()
+    def resolve_all_products(self, info, **kwargs):
+        qs = Product.objects.all()
+        order_by = kwargs.get('order_by')
+        if order_by:
+            qs = qs.order_by(*order_by)
+        return qs
 
-    def resolve_orders(self, info):
-        return Order.objects.all()
+    def resolve_all_orders(self, info, **kwargs):
+        qs = Order.objects.all()
+        order_by = kwargs.get('order_by')
+        if order_by:
+            qs = qs.order_by(*order_by)
+        return qs
 
-
+        
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
     bulk_create_customers = BulkCreateCustomers.Field()
