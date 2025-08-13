@@ -1,10 +1,12 @@
 import graphene
 from graphene_django import DjangoObjectType
-from .models import Customer, Product, Order
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
+import re
+
+from .models import Customer, Product, Order
 
 
 # ============================
@@ -39,7 +41,7 @@ class CustomerInput(graphene.InputObjectType):
 
 class ProductInput(graphene.InputObjectType):
     name = graphene.String(required=True)
-    price = graphene.Float(required=True)
+    price = graphene.Decimal(required=True)  # Decimal for precision
     stock = graphene.Int(required=False)
 
 
@@ -60,11 +62,20 @@ class CreateCustomer(graphene.Mutation):
     message = graphene.String()
 
     def mutate(self, info, input):
+        # Email uniqueness check
         if Customer.objects.filter(email=input.email).exists():
             raise ValidationError("Email already exists")
+
+        # Phone validation (if provided)
+        if input.phone:
+            pattern = r'^(\+?\d{7,15}|\d{3}-\d{3}-\d{4})$'
+            if not re.match(pattern, input.phone):
+                raise ValidationError("Invalid phone format. Use +1234567890 or 123-456-7890")
+
         customer = Customer(name=input.name, email=input.email, phone=input.phone)
         customer.full_clean()
         customer.save()
+
         return CreateCustomer(customer=customer, message="Customer created successfully")
 
 
@@ -84,14 +95,20 @@ class BulkCreateCustomers(graphene.Mutation):
                 try:
                     if Customer.objects.filter(email=data.email).exists():
                         raise ValidationError(f"Email already exists: {data.email}")
+                    if data.phone:
+                        pattern = r'^(\+?\d{7,15}|\d{3}-\d{3}-\d{4})$'
+                        if not re.match(pattern, data.phone):
+                            raise ValidationError(f"Invalid phone format: {data.phone}")
+
                     customer = Customer(name=data.name, email=data.email, phone=data.phone)
                     customer.full_clean()
                     customer.save()
                     created_customers.append(customer)
+
                 except ValidationError as e:
                     errors.append(f"Row {idx+1}: {', '.join(e.messages)}")
-        return BulkCreateCustomers(customers=created_customers, errors=errors)
 
+        return BulkCreateCustomers(customers=created_customers, errors=errors)
 
 
 class CreateProduct(graphene.Mutation):
@@ -101,7 +118,7 @@ class CreateProduct(graphene.Mutation):
     product = graphene.Field(ProductType)
 
     def mutate(self, info, input):
-        # Convert to Decimal and force 2 decimal places
+        # Decimal handling to avoid float issues
         try:
             price_value = Decimal(str(input.price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         except Exception:
@@ -112,15 +129,12 @@ class CreateProduct(graphene.Mutation):
         if input.stock is not None and input.stock < 0:
             raise ValidationError("Stock cannot be negative")
 
-        product = Product(
-            name=input.name,
-            price=price_value,
-            stock=input.stock or 0
-        )
+        product = Product(name=input.name, price=price_value, stock=input.stock or 0)
         product.full_clean()
         product.save()
 
         return CreateProduct(product=product)
+
 
 class CreateOrder(graphene.Mutation):
     class Arguments:
@@ -139,11 +153,18 @@ class CreateOrder(graphene.Mutation):
             raise ValidationError("Invalid product IDs")
         if len(products) != len(input.product_ids):
             raise ValidationError("Some product IDs are invalid")
+        if products.count() < 1:
+            raise ValidationError("At least one product must be selected")
 
         order = Order(customer=customer, order_date=input.order_date or timezone.now())
         order.save()
         order.products.set(products)
-        order.calculate_total()
+
+        # Calculate total accurately
+        total = sum(p.price for p in products)
+        order.total_amount = Decimal(total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        order.save()
+
         return CreateOrder(order=order)
 
 
