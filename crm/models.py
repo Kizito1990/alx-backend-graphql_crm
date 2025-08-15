@@ -15,7 +15,8 @@ class Customer(models.Model):
             message="Phone number must be in format +1234567890 or 123-456-7890"
         )]
     )
-
+    created_at = models.DateTimeField(auto_now_add=True)
+    
     def __str__(self):
         return f"{self.name} ({self.email})"
 

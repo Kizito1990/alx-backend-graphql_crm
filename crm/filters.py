@@ -1,5 +1,6 @@
 import django_filters
 from .models import Customer, Product, Order
+from django_filters import OrderingFilter
 
 # --------------------
 # Customer Filter
@@ -29,6 +30,14 @@ class ProductFilter(django_filters.FilterSet):
     stock__gte = django_filters.NumberFilter(field_name='stock', lookup_expr='gte')
     stock__lte = django_filters.NumberFilter(field_name='stock', lookup_expr='lte')
     low_stock = django_filters.BooleanFilter(method='filter_low_stock')
+
+    order_by = OrderingFilter(
+        fields=(
+            ('price', 'price'),
+            ('stock', 'stock'),
+        )
+    )
+
 
     class Meta:
         model = Product

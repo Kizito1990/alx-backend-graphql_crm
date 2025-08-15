@@ -18,18 +18,20 @@ class CustomerType(DjangoObjectType):
     class Meta:
         model = Customer
         fields = "__all__"
-
+        interfaces = (graphene.relay.Node,)
 
 class ProductType(DjangoObjectType):
     class Meta:
         model = Product
         fields = "__all__"
+        interfaces = (graphene.relay.Node,)
 
 
 class OrderType(DjangoObjectType):
     class Meta:
         model = Order
         fields = "__all__"
+        interfaces = (graphene.relay.Node,)
 
 
 # ============================
@@ -199,7 +201,7 @@ class Query(graphene.ObjectType):
             qs = qs.order_by(*order_by)
         return qs
 
-        
+
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
     bulk_create_customers = BulkCreateCustomers.Field()
